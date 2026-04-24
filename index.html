@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Genetikai kódfejtő</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <h1>Genetikai kódfejtő</h1>
+        <div class="header-content">
+            <div class="instructions">
+                <p><strong>Útmutató:</strong></p>
+                <p>1. Válassz egy fajt a menüből vagy írj be egyéni DNS szekvenciát.</p>
+                <p>2. Kattints a "Betöltés" gombra a faj szekvenciájának megjelenítéséhez.</p>
+                <p>3. Kattints az "Elemez" gombra az eredmények megtekintéséhez (GC-tartalom, mRNS, aminosavak).</p>
+            </div>
+            <div class="diagram">
+                <svg width="280" height="100" viewBox="0 0 280 100" xmlns="http://www.w3.org/2000/svg">
+                    <!-- DNS doboz -->
+                    <rect x="10" y="25" width="50" height="50" fill="#c8e6c9" stroke="#2e7d32" stroke-width="2"/>
+                    <text x="35" y="57" font-size="12" font-weight="bold" text-anchor="middle" fill="#1b5e20">DNS</text>
+                    
+                    <!-- Nyíl 1 -->
+                    <path d="M 65 55 L 85 55" stroke="#2e7d32" stroke-width="2" fill="none" marker-end="url(#arrowhead)"/>
+                    
+                    <!-- mRNS doboz -->
+                    <rect x="90" y="25" width="50" height="50" fill="#a5d6a7" stroke="#2e7d32" stroke-width="2"/>
+                    <text x="115" y="57" font-size="12" font-weight="bold" text-anchor="middle" fill="#1b5e20">mRNS</text>
+                    
+                    <!-- Nyíl 2 -->
+                    <path d="M 145 55 L 165 55" stroke="#2e7d32" stroke-width="2" fill="none" marker-end="url(#arrowhead)"/>
+                    
+                    <!-- Protein doboz -->
+                    <rect x="170" y="25" width="50" height="50" fill="#81c784" stroke="#2e7d32" stroke-width="2"/>
+                    <text x="195" y="57" font-size="12" font-weight="bold" text-anchor="middle" fill="#fff">Fehérje</text>
+                    
+                    <!-- Nyílhegy definíció -->
+                    <defs>
+                        <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                            <polygon points="0 0, 10 3, 0 6" fill="#2e7d32"/>
+                        </marker>
+                    </defs>
+                </svg>
+            </div>
+        </div>
+    </header>
+
+    <main>
+        <section class="controls">
+            <div class="form-group">
+                <label for="preset">Válassz minta gén:</label>
+                <select id="preset" onchange="loadPreset()">
+                    <option value="">-- Válassz --</option>
+                    <option value="custom">Egyéni DNS (saját bemásolás)</option>
+                    <option value="minta_01">Sziklasárkány (Draco petraeus)</option>
+                    <option value="minta_02">Zombi-vírus (Necrovirus cerebri)</option>
+                    <option value="minta_03">Kozmikus Űr-medúza (Medusa galactica)</option>
+                    <option value="minta_04">Láthatatlan Mocsári Manó (Goblinus invisibilis)</option>
+                </select>
+            </div>
+
+            <div id="sample_info" class="sample-info"></div>
+
+            <div class="form-group">
+                <label for="dna_input">DNS (ATGC):</label>
+                <textarea id="dna_input" rows="6" placeholder="Pl. ATGAAATTT..."></textarea>
+            </div>
+
+            <div class="actions">
+                <button class="btn-primary" onclick="analyze()">Elemez</button>
+                <button class="btn-secondary" onclick="clearAll()">Töröl</button>
+            </div>
+        </section>
+
+        <section id="output" class="output">
+            <!-- eredmények ide kerülnek -->
+        </section>
+
+        <aside class="info">
+            <h3>Rövid magyarázat</h3>
+            <p><strong>DNS → mRNS:</strong> T bázisok U-ra cserélődnek.</p>
+            <p><strong>Fordítás:</strong> Az első AUG (Start) kodontól kezdve, 3 bázisonként (triplett), egészen a Stop kodonig (UAA, UAG, UGA).</p>
+            <p><strong>GC-tartalom:</strong> A guanin (G) és citozin (C) bázisok százalékos aránya a szekvenciában.</p>
+        </aside>
+    </main>
+
+    <footer>
+        <p>Projekt: Genetikai kódfejtő — Bioinformatika | GitHub Pages publikáláshoz lásd: README.md</p>
+    </footer>
+
+    <script>
+        // Minták az tanár úr által adott adatokkal
+        const SAMPLES = {
+            'minta_01': {
+                'nev': 'Sziklasárkány (Draco petraeus)',
+                'leiras': 'A pikkely-keményítő enzim génje. Ez a fehérje felelős azért, hogy a sárkány bőre ellenálljon a vulkáni hőnek.',
+                'dns': 'GCATCGTAGCTAGCCGATGCGCTACGGCTGGCAGTTTGACGTGAACAAATAACGATCGATCGACT'
+            },
+            'minta_02': {
+                'nev': 'Zombi-vírus (Necrovirus cerebri)',
+                'leiras': 'A rettegett agyevő protein. Ez a peptid veszi át az irányítást a fertőzött gazdatest idegrendszere felett.',
+                'dns': 'TTCGACCGGTCAAATGGACGAGGGGTTTTCTATACCTAGACCTGTCGTGTAGCCTGCATGC'
+            },
+            'minta_03': {
+                'nev': 'Kozmikus Űr-medúza (Medusa galactica)',
+                'leiras': 'Asztro-fluoreszkáló fehérje. Lehetővé teszi, hogy az élőlény világítson a csillagközi sötétségben a gamma-sugárzás hatására.',
+                'dns': 'ATATACGCGCGATGAAACCCGGGTTTACCGCCTGTAGCTATCACTGATTTAAACCCGGG'
+            },
+            'minta_04': {
+                'nev': 'Láthatatlan Mocsári Manó (Goblinus invisibilis)',
+                'leiras': 'Fénytörő enzim szakasza. A fehérje speciális szerkezete elhajlítja a látható fényt, optikai álcázást biztosítva.',
+                'dns': 'CTCGATCGATATGACCTGCCCATACTACTTTAACCAGGGCATCTAAAGGCATCGTACG'
+            }
+        };
+
+        // Teljes kodon tábla
+        const CODON_TABLE = {
+            'UUU': 'Phe', 'UUC': 'Phe', 'UUA': 'Leu', 'UUG': 'Leu',
+            'UCU': 'Ser', 'UCC': 'Ser', 'UCA': 'Ser', 'UCG': 'Ser',
+            'UAU': 'Tyr', 'UAC': 'Tyr', 'UAA': 'STOP', 'UAG': 'STOP',
+            'UGU': 'Cys', 'UGC': 'Cys', 'UGA': 'STOP', 'UGG': 'Trp',
+            'CUU': 'Leu', 'CUC': 'Leu', 'CUA': 'Leu', 'CUG': 'Leu',
+            'CCU': 'Pro', 'CCC': 'Pro', 'CCA': 'Pro', 'CCG': 'Pro',
+            'CAU': 'His', 'CAC': 'His', 'CAA': 'Gln', 'CAG': 'Gln',
+            'CGU': 'Arg', 'CGC': 'Arg', 'CGA': 'Arg', 'CGG': 'Arg',
+            'AUU': 'Ile', 'AUC': 'Ile', 'AUA': 'Ile', 'AUG': 'Met',
+            'ACU': 'Thr', 'ACC': 'Thr', 'ACA': 'Thr', 'ACG': 'Thr',
+            'AAU': 'Asn', 'AAC': 'Asn', 'AAA': 'Lys', 'AAG': 'Lys',
+            'AGU': 'Ser', 'AGC': 'Ser', 'AGA': 'Arg', 'AGG': 'Arg',
+            'GUU': 'Val', 'GUC': 'Val', 'GUA': 'Val', 'GUG': 'Val',
+            'GCU': 'Ala', 'GCC': 'Ala', 'GCA': 'Ala', 'GCG': 'Ala',
+            'GAU': 'Asp', 'GAC': 'Asp', 'GAA': 'Glu', 'GAG': 'Glu',
+            'GGU': 'Gly', 'GGC': 'Gly', 'GGA': 'Gly', 'GGG': 'Gly'
+        };
+
+        function sanitizeDna(seq) {
+            return seq.toUpperCase().replace(/[^ATGC]/g, '');
+        }
+
+        function gcContent(seq) {
+            if (!seq) return 0;
+            const g = seq.match(/G/g) || [];
+            const c = seq.match(/C/g) || [];
+            return ((g.length + c.length) / seq.length * 100).toFixed(2);
+        }
+
+        function dnaToMrna(dna) {
+            return dna.replace(/T/g, 'U');
+        }
+
+        function translate(mrna) {
+            const start = mrna.indexOf('AUG');
+            if (start === -1) return { aa: [], region: null };
+            
+            const aa = [];
+            let pos = start;
+            while (pos + 3 <= mrna.length) {
+                const codon = mrna.substring(pos, pos + 3);
+                const aaName = CODON_TABLE[codon] || '???';
+                if (aaName === 'STOP') {
+                    return { aa: aa, region: { start: start, end: pos + 3 } };
+                }
+                aa.push(aaName);
+                pos += 3;
+            }
+            return { aa: aa, region: { start: start, end: pos } };
+        }
+
+        function loadPreset() {
+            const preset = document.getElementById('preset').value;
+            const dnaInput = document.getElementById('dna_input');
+            const infoDiv = document.getElementById('sample_info');
+            
+            if (!preset) {
+                dnaInput.value = '';
+                infoDiv.innerHTML = '';
+                return;
+            }
+            
+            if (preset === 'custom') {
+                dnaInput.value = '';
+                infoDiv.innerHTML = '<p><strong>Egyéni DNS mód:</strong> Másold be saját DNS szekvenciádat (csak ATGC karakterek).</p>';
+                return;
+            }
+            
+            const sample = SAMPLES[preset];
+            if (sample) {
+                dnaInput.value = sample.dns;
+                infoDiv.innerHTML = `<strong>${sample.nev}</strong><p>${sample.leiras}</p>`;
+            }
+        }
+
+        function analyze() {
+            const dnaInput = document.getElementById('dna_input');
+            const outputDiv = document.getElementById('output');
+            
+            const raw = dnaInput.value || '';
+            const dna = sanitizeDna(raw);
+            
+            if (!dna) {
+                outputDiv.innerHTML = '<p style="color:red;">Kérlek írj be egy DNS szekvenciát!</p>';
+                outputDiv.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                return;
+            }
+            
+            const gc = gcContent(dna);
+            const mrna = dnaToMrna(dna);
+            const result = translate(mrna);
+            const aa = result.aa;
+            const region = result.region;
+            
+            let displayMrna = mrna;
+            if (region) {
+                const before = mrna.substring(0, region.start);
+                const highlighted = mrna.substring(region.start, region.end);
+                const after = mrna.substring(region.end);
+                displayMrna = `${before}<span class="highlight">${highlighted}</span>${after}`;
+            }
+            
+            const aaText = aa.length > 0 ? aa.join(' - ') : '(nincs Start/AUG vagy rövid a szekvencia)';
+            
+            const html = `
+                <h2>Analízis eredménye</h2>
+                <div class="result-item">
+                    <h3>DNS szekvencia</h3>
+                    <code class="mono">${dna}</code>
+                </div>
+                <div class="result-item">
+                    <h3>GC-tartalom: <strong>${gc}%</strong></h3>
+                </div>
+                <div class="result-item">
+                    <h3>mRNS (T → U)</h3>
+                    <code class="mono">${displayMrna}</code>
+                </div>
+                <div class="result-item">
+                    <h3>Aminosav sorrend</h3>
+                    <code class="mono">${aaText}</code>
+                </div>
+            `;
+            
+            outputDiv.innerHTML = html;
+            outputDiv.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        function clearAll() {
+            document.getElementById('output').innerHTML = '';
+            document.getElementById('dna_input').value = '';
+            document.getElementById('sample_info').innerHTML = '';
+            document.getElementById('preset').value = '';
+        }
+    </script>
+</body>
+</html>
